@@ -15,7 +15,7 @@ An async Python client for the Fibery API with support for entity management, do
 ## Installation
 
 ```bash
-pip install fibery-client
+pip install git+ssh://git@github.com/aithenaltd/fibery-client.git
 ```
 
 ## Quick Start
