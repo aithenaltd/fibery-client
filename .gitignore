@@ -1,0 +1,20 @@
+.idea
+.env
+.devenv*
+.devenv.flake.nix
+.direnv
+
+__pycache__/
+*.py[cod]
+*$py.class
+dist/
+build/
+*.egg-info/
+
+.venv/
+
+.coverage
+htmlcov/
+
+# custom
+check.sh

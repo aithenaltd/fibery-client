@@ -1,0 +1,123 @@
+[project]
+name = "fibery-client"
+version = "0.1.0"
+description = "Async Python client for Fibery API with support for entity management, document handling, and complex queries"
+authors = [
+    {name = "Aithena"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["fibery", "api", "async", "client", "document-management"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic>=2.10.5,<3.0.0",
+    "python-dotenv>=1.0.1,<2.0.0",
+    "httpx>=0.28.1,<0.29.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9.2,<0.10.0",
+    "mypy>=1.14.1,<2.0.0",
+    "pytest>=8.3.4,<9.0.0",
+    "pytest-asyncio>=0.25.2,<0.26.0"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/aithenaltd/fibery-client"
+"Bug Tracker" = "https://github.com/aithenaltd/fibery-client/issues"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [
+    { include = "fibery", from = "src" }
+]
+
+[tool.ruff]
+lint.select = [
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "I",  # isort
+    "N",  # naming
+    "S",  # security
+    "B",  # bugbear
+    "A",  # builtins
+    "C4", # comprehensions
+    "PT", # pytest style
+    "RUF", # ruff-specific
+    "SIM", # simplify
+    "TCH", # type-checking
+    "UP", # pyupgrade
+    "W",  # warnings
+]
+
+lint.ignore = ["E501"]
+
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "dist",
+    "venv",
+]
+
+line-length = 88
+indent-width = 4
+
+target-version = "py311"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["fibery_client"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "single"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "fibery.*"
+ignore_missing_imports = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
