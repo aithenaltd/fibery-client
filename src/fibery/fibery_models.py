@@ -16,7 +16,7 @@ class FiberyUploadError(Exception):
 
 
 class FiberyCommand(BaseModel):
-    command: str = 'fibery.entity/create'
+    command: str
     args: dict[str, Any]
 
 

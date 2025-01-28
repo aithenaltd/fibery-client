@@ -107,6 +107,7 @@ class EntityBuilder:
     def prepare_command(type_name: str, data: FiberyBaseModel) -> tuple[str, FiberyCommand]:
         entity_id = str(uuid4())
         command = FiberyCommand(
+            command='fibery.entity/create',
             args={
                 'type': type_name,
                 'entity': {
@@ -116,3 +117,17 @@ class EntityBuilder:
             }
         )
         return entity_id, command
+
+
+    @staticmethod
+    def prepare_update_command(type_name: str, entity_id: str, updates: dict[str, Any]) -> FiberyCommand:
+        return FiberyCommand(
+            command='fibery.entity/update',
+            args={
+                'type': type_name,
+                'entity': {
+                    'fibery/id': entity_id,
+                    **updates
+                }
+            }
+        )

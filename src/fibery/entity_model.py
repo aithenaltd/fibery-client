@@ -11,8 +11,17 @@ class RichTextField(BaseModel):
 
 
 class FiberyBaseModel(BaseModel):
+    fibery_id: str | None = None
+
     FIBERY_FIELD_MAP: ClassVar[dict[str, str]] = {}
     RICH_TEXT_FIELDS: ClassVar[dict[str, str]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.FIBERY_FIELD_MAP = {
+            'fibery_id': 'fibery/id',
+            **cls.FIBERY_FIELD_MAP
+        }
 
     def to_fibery_fields(self) -> dict[str, Any]:
         return {

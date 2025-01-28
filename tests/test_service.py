@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from src.fibery.fibery_formats import DocumentFormat
-from src.fibery.fibery_models import FiberyUploadError, QueryResponse
+from src.fibery.fibery_models import FiberyError, FiberyUploadError, QueryResponse
 from src.fibery.fibery_service import FiberyService
 from tests.conftest import FiberyModel
 
@@ -168,3 +168,79 @@ class TestFiberyService:
         assert isinstance(response, QueryResponse)
         assert len(response.items) > 0
         assert isinstance(response.items[0], FiberyModel)
+
+    @pytest.mark.asyncio
+    async def test_update_entity(self, service, mock_client):
+        mock_response = Mock()
+        mock_response.json.return_value = [{
+            'success': True,
+            'result': {
+                'fibery/id': 'test_id',
+                'TestType/name': 'Updated Name'
+            }
+        }]
+        mock_client.post.return_value = mock_response
+
+        response = await service.update_entity(
+            type_name='TestType',
+            entity_id='test_id',
+            updates={'TestType/name': 'Updated Name'}
+        )
+
+        assert response.success is True
+        assert response.result['TestType/name'] == 'Updated Name'
+        mock_client.post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_find_and_update_entity(self, service, mock_client):
+        search_response = Mock()
+        search_response.json.return_value = [{
+            'success': True,
+            'result': [{
+                'fibery/id': 'found_id',
+                'TestType/name': 'Original Name',
+                'TestType/description': 'Original Description'
+            }]
+        }]
+
+        update_response = Mock()
+        update_response.json.return_value = [{
+            'success': True,
+            'result': {
+                'fibery/id': 'found_id',
+                'TestType/name': 'Updated Name',
+                'TestType/description': 'Original Description'
+            }
+        }]
+
+        mock_client.post.side_effect = [search_response, update_response]
+
+        response = await service.find_and_update_entity(
+            type_name='TestType',
+            model_class=FiberyModel,
+            search_field='name',
+            search_value='Original Name',
+            updates={'TestType/name': 'Updated Name'}
+        )
+
+        assert response.success is True
+        assert response.result['TestType/name'] == 'Updated Name'
+        assert mock_client.post.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_find_and_update_entity_not_found(self, service, mock_client):
+        mock_response = Mock()
+        mock_response.json.return_value = [{
+            'success': True,
+            'result': [],
+        }]
+        mock_client.post.return_value = mock_response
+
+        with pytest.raises(FiberyError, match='Entity not found'):
+            await service.find_and_update_entity(
+                type_name='TestType',
+                model_class=FiberyModel,
+                search_field='name',
+                search_value='Nonexistent',
+                updates={'TestType/name': 'Updated Name'}
+            )

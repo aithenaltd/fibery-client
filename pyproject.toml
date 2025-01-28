@@ -1,6 +1,6 @@
 [project]
 name = "fibery-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "Async Python client for Fibery API with support for entity management, document handling, and complex queries"
 authors = [
     {name = "Aithena"}
