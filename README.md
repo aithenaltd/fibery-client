@@ -186,6 +186,10 @@ poetry install
 poetry run pytest
 ```
 
+## todo
+
+- Add logger level setting
+
 ## License
 
 MIT License - see LICENSE file for details.

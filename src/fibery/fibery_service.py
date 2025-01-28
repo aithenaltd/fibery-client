@@ -18,7 +18,13 @@ from .fibery_models import (
     T,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class FiberyService:
@@ -44,6 +50,7 @@ class FiberyService:
         try:
             query = QueryBuilder.build_document_query(type_name, entity_id, field_name)
             response = await self.client.post('/api/commands', json=[query])
+            logger.info(response.text)
             result = response.json()
             return DocumentResponse.from_raw_response(result[0], field_name)
         except httpx.HTTPError as error:
@@ -62,6 +69,7 @@ class FiberyService:
                 params={'format': str(document_format)},
                 json={'content': content}
             )
+            logger.info(response.text)
             result = response.json()
             return isinstance(result, dict) and 'success' in result
         except httpx.HTTPError as error:
@@ -76,6 +84,7 @@ class FiberyService:
         try:
             entity_id, command = EntityBuilder.prepare_command(type_name, item)
             response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
             result = response.json()
             result_list = cast(list, result)
 
@@ -170,6 +179,7 @@ class FiberyService:
             params=params
         )
         response = await self.client.post('/api/commands', json=[query])
+        logger.info(response.text)
         result = response.json()
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
@@ -207,6 +217,7 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
+        logger.info(response.text)
         result = response.json()
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
@@ -230,6 +241,7 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
+        logger.info(response.text)
         result = response.json()
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
@@ -243,6 +255,7 @@ class FiberyService:
         try:
             command = EntityBuilder.prepare_update_command(type_name, entity_id, updates)
             response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
             result = response.json()
             result_list = cast(list, result)
 
