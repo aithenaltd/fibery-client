@@ -1,22 +1,27 @@
 import asyncio
+import json
 import logging
 from collections.abc import Sequence
-from typing import Any, cast
+from pathlib import Path
+from typing import Any, BinaryIO, cast
 
 import httpx
 
 from .builders import EntityBuilder, QueryBuilder
 from .config import FiberyConfig
 from .entity_model import FiberyBaseModel, RichTextField
-from .fibery_formats import DocumentFormat
 from .fibery_models import (
     DocumentResponse,
     FiberyError,
     FiberyResponse,
     FiberyUploadError,
+    FileUploadResponse,
+    HttpMethod,
     QueryResponse,
     T,
+    UrlUploadRequest,
 )
+from .utils import CollectionOperation, DocumentFormat
 
 logging.basicConfig(
     level=logging.INFO,
@@ -303,3 +308,201 @@ class FiberyService:
         except Exception as error:
             logger.error(error)
             raise FiberyError(f'Failed to find and update entity: {error}') from error
+
+    async def update_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str],
+            operation: CollectionOperation
+    ) -> FiberyResponse:
+        try:
+            command = EntityBuilder.prepare_collection_command(
+                type_name=type_name,
+                entity_id=entity_id,
+                field=field,
+                item_ids=item_ids,
+                operation=operation
+            )
+
+            response = await self.client.post(
+                '/api/commands',
+                json=[command.model_dump()]
+            )
+            logger.info(response.text)
+            result = response.json()
+            result_list = cast(list, result)
+
+            return FiberyResponse(
+                success=result_list[0].get('success'),
+                result=result_list[0]
+            )
+        except httpx.HTTPError as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to {operation} items to collection: {error}') from error
+
+    async def add_to_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.update_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field=field,
+            item_ids=item_ids,
+            operation=CollectionOperation.ADD
+        )
+
+    async def remove_from_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.update_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field=field,
+            item_ids=item_ids,
+            operation=CollectionOperation.REMOVE,
+        )
+
+    # https://the.fibery.io/@public/User_Guide/Guide/File-API-265/anchor=Upload-File--604ca3b5-6011-4700-8c35-8ae750a7b468
+    async def upload_file(
+            self,
+            file: str | Path | BinaryIO,
+            filename: str | None = None
+    ) -> FileUploadResponse:
+        """
+            Upload a file to Fibery using curl subprocess as a workaround for multipart/form-data issues.
+
+            This is a hacky solution that uses curl instead of the standard httpx client due to
+            difficulties with proper multipart/form-data formatting in the Python HTTP clients.
+            While not elegant, this approach works because:
+            1. It exactly matches the working curl command from Fibery documentation
+            2. Bypasses issues with Python's multipart encoding that Fibery's server rejects
+            3. Maintains async compatibility using asyncio subprocesses
+
+            Warning:
+                - Relies on curl being installed on the system
+                - May break if Fibery changes their API
+                - Limited error handling for curl process issues
+                - Not ideal for production systems but works as a temporary solution
+        """
+        try:
+            if isinstance(file, (str, Path)):  # noqa UPO38
+                file_path = Path(file)
+            else:
+                if not filename:
+                    raise ValueError('filename is required when uploading from file object')
+                raise ValueError('File object not supported yet, please provide a file path')
+
+            command = [
+                'curl',
+                '-X', 'POST',
+                f'{self.config.base_url}/api/files',
+                '-H', f'Authorization: Token {self.config.token}',
+                '-H', 'content-type: multipart/form-data',
+                '-F', f'file=@{file_path!s}'
+            ]
+
+            logger.info(f"Executing command: {' '.join(command)}")
+
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate()
+
+            logger.debug(f"CURL stdout: {stdout.decode()}")
+            if stderr:
+                logger.debug(f"CURL stderr: {stderr.decode()}")
+
+            if process.returncode != 0:
+                raise FiberyError(f'Upload failed with curl error: {stderr.decode()}')
+
+            try:
+                response_data = json.loads(stdout.decode())
+                return FileUploadResponse.model_validate(response_data)
+            except json.JSONDecodeError as e:
+                raise FiberyError(f'Failed to parse response JSON: {e}') from e
+
+        except Exception as error:
+            logger.error(f'Failed to upload file: {error}')
+            raise FiberyError(f'Failed to upload file: {error}') from error
+
+    async def upload_from_url(
+            self,
+            url: str,
+            name: str | None = None,
+            method: HttpMethod = HttpMethod.GET,
+    ) -> FileUploadResponse:
+        try:
+            request = UrlUploadRequest(
+                url=url,
+                name=name,
+                method=method,
+                headers=self.config.headers,
+            )
+
+            response = await self.client.post(
+                '/api/files/from-url',
+                json=request.model_dump(exclude_none=True)
+            )
+            logger.info(response.text)
+
+            if response.status_code != 200:
+                raise FiberyError(f'Upload failed with status {response.status_code}: {response.text}')
+
+            return FileUploadResponse.model_validate(response.json())
+
+        except Exception as error:
+            logger.error(f'Failed to upload file from URL: {error}')
+            raise FiberyError(f'Failed to upload file from URL: {error}') from error
+
+
+    async def download_file(
+            self,
+            secret: str,
+            destination: str | Path | None = None
+    ) -> bytes:
+        try:
+            response = await self.client.get(f'/api/files/{secret}')
+            logger.info(f'Downloaded file with secret {secret}')
+
+            if response.status_code != 200:
+                raise FiberyError(f'Download failed with status {response.status_code}: {response.text}')
+
+            content = response.content
+
+            if destination:
+                path = Path(destination)
+                path.write_bytes(content)
+                logger.info(f'Saved file to {path}')
+
+            return content
+
+        except Exception as error:
+            logger.error(f'Failed to download file: {error}')
+            raise FiberyError(f'Failed to download file: {error}') from error
+
+
+    async def attach_files(
+            self,
+            type_name: str,
+            entity_id: str,
+            file_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.add_to_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field='Files/Files',
+            item_ids=file_ids
+        )
