@@ -1,5 +1,4 @@
 from .entity_model import FiberyBaseModel
-from .fibery_formats import DocumentFormat
 from .fibery_models import (
     DocumentResponse,
     FiberyError,
@@ -8,6 +7,7 @@ from .fibery_models import (
     QueryResponse,
 )
 from .fibery_service import FiberyService
+from .utils import DocumentFormat
 
 __version__ = "0.1.0"
 

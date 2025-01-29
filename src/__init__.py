@@ -44,7 +44,6 @@ For more information, visit: https://github.com/aithenaltd/fibery-client
 """
 
 from fibery.entity_model import FiberyBaseModel
-from fibery.fibery_formats import DocumentFormat
 from fibery.fibery_models import (
     DocumentResponse,
     FiberyError,
@@ -53,6 +52,7 @@ from fibery.fibery_models import (
     QueryResponse,
 )
 from fibery.fibery_service import FiberyService
+from fibery.utils import DocumentFormat
 
 __version__ = "0.1.0"
 __author__ = "Aithena"
