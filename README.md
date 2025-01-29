@@ -1,6 +1,6 @@
 # Fibery Client
 
-An async Python client for the Fibery API with support for entity management, document handling, and complex queries.
+An async Python client for the Fibery API with support for entity management, document handling and complex queries.
 
 ## Features
 
@@ -91,7 +91,27 @@ async with FiberyService(token='your_token') as service:
         model_class=EntityData,
         field_name='YOUR_SPACE/Name',
         operator='q/contains',
-        value='test'
+        value='test',
+    )
+
+    # Update entity
+    await service.update_entity(
+        type_name='YOUR_SPACE/Type',
+        entity_id="39d2b777-0edf-4391-a0dd-ae11f82b85a0",
+        updates={
+            'YOUR_SPACE/Name': 'New name',
+        },
+    )
+    
+    # Find and update entity
+    await service.find_and_update_entity(
+        type_name='YOUR_SPACE/Type',
+        model_class=EntityData,
+        search_field='YOUR_SPACE/Name',
+        search_value='Old name',
+        updates={
+            'YOUR_SPACE/Name': 'New name',
+        },
     )
 ```
 
@@ -165,6 +185,10 @@ poetry install
 ```bash
 poetry run pytest
 ```
+
+## todo
+
+- Add logger level setting
 
 ## License
 

@@ -18,7 +18,13 @@ from .fibery_models import (
     T,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class FiberyService:
@@ -44,9 +50,11 @@ class FiberyService:
         try:
             query = QueryBuilder.build_document_query(type_name, entity_id, field_name)
             response = await self.client.post('/api/commands', json=[query])
+            logger.info(response.text)
             result = response.json()
             return DocumentResponse.from_raw_response(result[0], field_name)
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to get document secret: {error}') from error
 
     async def update_document(
@@ -61,9 +69,11 @@ class FiberyService:
                 params={'format': str(document_format)},
                 json={'content': content}
             )
+            logger.info(response.text)
             result = response.json()
             return isinstance(result, dict) and 'success' in result
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to update document: {error}') from error
 
     async def create_entity(
@@ -74,6 +84,7 @@ class FiberyService:
         try:
             entity_id, command = EntityBuilder.prepare_command(type_name, item)
             response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
             result = response.json()
             result_list = cast(list, result)
 
@@ -82,6 +93,7 @@ class FiberyService:
                 result=result_list[0],
             )
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to create entity: {error}') from error
 
     async def _update_rich_text_fields(
@@ -103,8 +115,8 @@ class FiberyService:
                         content=rich_text.content,
                         document_format=rich_text.format
                     )
-            except Exception as e:
-                logger.error(f'Error updating field {field_name}: {e}')
+            except Exception as error:
+                logger.error(f'Error updating field {field_name}: {error}')
 
     async def upload_entity(
             self,
@@ -124,6 +136,7 @@ class FiberyService:
             return entity_id
 
         except Exception as error:
+            logger.error(error)
             raise FiberyUploadError(f'Failed to upload documents for {model}: {error}') from error
 
     async def upload_sequential(
@@ -138,7 +151,9 @@ class FiberyService:
                     model=model,
                     type_name=type_name,
                 )
+                logger.info(f'Successfully uploaded {model}')
             except Exception as error:
+                logger.error(error)
                 raise FiberyUploadError(f'Failed to upload entity {model}: {error}') from error
 
             await asyncio.sleep(delay)
@@ -164,9 +179,8 @@ class FiberyService:
             params=params
         )
         response = await self.client.post('/api/commands', json=[query])
-        print(response)
+        logger.info(response.text)
         result = response.json()
-        print(result)
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
@@ -203,9 +217,8 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
-        print(response)
+        logger.info(response.text)
         result = response.json()
-        print(result)
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
@@ -228,6 +241,65 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
+        logger.info(response.text)
         result = response.json()
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
+
+    async def update_entity(
+            self,
+            type_name: str,
+            entity_id: str,
+            updates: dict[str, Any]
+    ) -> FiberyResponse:
+        try:
+            command = EntityBuilder.prepare_update_command(type_name, entity_id, updates)
+            response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
+            result = response.json()
+            result_list = cast(list, result)
+
+            logger.info(f'Updating entity {entity_id}')
+            return FiberyResponse(
+                success=result_list[0].get('success'),
+                result=result_list[0].get('result')
+            )
+        except httpx.HTTPError as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to update entity: {error}') from error
+
+    async def find_and_update_entity(
+            self,
+            type_name: str,
+            model_class: type[T],
+            search_field: str,
+            search_value: Any,
+            updates: dict[str, Any]
+    ) -> FiberyResponse:
+        try:
+            response = await self.get_filtered_entities(
+                type_name=type_name,
+                fields=['fibery/id'],
+                model_class=model_class,
+                field_name=search_field,
+                operator='=',
+                value=search_value,
+                limit=1
+            )
+
+            logger.info('Successfully found entity')
+            if not response.items:
+                raise FiberyError(f'Entity not found with {search_field}={search_value}')
+
+            entity_id = response.items[0].fibery_id
+            if not entity_id:
+                raise FiberyError('Retrieved entity missing fibery/id')
+
+            return await self.update_entity(
+                type_name=type_name,
+                entity_id=entity_id,
+                updates=updates
+            )
+        except Exception as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to find and update entity: {error}') from error
