@@ -2,7 +2,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from .fibery_formats import DocumentFormat
+from .utils import DocumentFormat
 
 
 class RichTextField(BaseModel):

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from .entity_model import FiberyBaseModel
 from .fibery_models import FiberyCommand
+from .utils import CollectionOperation
 
 
 class QueryBuilder:
@@ -129,5 +130,23 @@ class EntityBuilder:
                     'fibery/id': entity_id,
                     **updates
                 }
+            }
+        )
+
+    @staticmethod
+    def prepare_collection_command(
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str],
+            operation: CollectionOperation,
+    ) -> FiberyCommand:
+        return FiberyCommand(
+            command=operation.command,
+            args={
+                'type': type_name,
+                'entity': {'fibery/id': entity_id},
+                'field': field,
+                'items': [{'fibery/id': item_id} for item_id in item_ids]
             }
         )
