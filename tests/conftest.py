@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from src import FiberyService
 from src.fibery.entity_model import FiberyBaseModel
 from src.fibery.utils import DocumentFormat
 
@@ -26,14 +27,11 @@ class AsyncMock(Mock):
         return super().__call__(*args, **kwargs)
 
 
-class MockProcess:
-    def __init__(self, stdout, stderr, returncode=0):
-        self.stdout = stdout
-        self.stderr = stderr
-        self.returncode = returncode
-
-    async def communicate(self):
-        return self.stdout, self.stderr
+@pytest.fixture
+def service(self, mock_client):
+    service = FiberyService(token='test_token', account='test_account')
+    service.client = mock_client
+    return service
 
 
 @pytest.fixture

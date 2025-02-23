@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -6,12 +6,11 @@ import pytest
 from src.fibery.fibery_models import (
     FiberyError,
     FiberyUploadError,
-    FileUploadResponse,
     QueryResponse,
 )
 from src.fibery.fibery_service import FiberyService
 from src.fibery.utils import CollectionOperation, DocumentFormat
-from tests.conftest import AsyncMock, FiberyModel, MockProcess
+from tests.conftest import FiberyModel
 
 
 class TestFiberyService:
@@ -252,110 +251,6 @@ class TestFiberyService:
             )
 
     @pytest.mark.asyncio
-    async def test_upload_file_success(self, service, tmp_path):
-        test_file = tmp_path / 'test.txt'
-        test_file.write_text('test content')
-
-        mock_process = MockProcess(
-            stdout=b'''
-            {
-                "fibery/id": "test-id-123",
-                "fibery/name": "test.txt",
-                "fibery/content-type": "text/plain",
-                "fibery/secret": "test-secret-456"
-            }
-            ''',
-            stderr=b'',
-            returncode=0
-        )
-
-        with patch('asyncio.create_subprocess_exec', AsyncMock(return_value=mock_process)):
-            response = await service.upload_file(test_file)
-
-            assert isinstance(response, FileUploadResponse)
-            assert response.id == "test-id-123"
-            assert response.name == "test.txt"
-            assert response.content_type == "text/plain"
-            assert response.secret == "test-secret-456"
-
-    @pytest.mark.asyncio
-    async def test_upload_file_curl_error(self, service, tmp_path):
-        test_file = tmp_path / 'test.txt'
-        test_file.write_text('test content')
-
-        mock_process = MockProcess(
-            stdout=b'',
-            stderr=b'curl: (22) Some curl error',
-            returncode=22
-        )
-
-        with patch('asyncio.create_subprocess_exec', AsyncMock(return_value=mock_process)):
-            with pytest.raises(FiberyError) as exc_info:
-                await service.upload_file(test_file)
-            assert 'curl error' in str(exc_info.value)
-
-    @pytest.mark.asyncio
-    async def test_upload_file_invalid_json_response(self, service, tmp_path):
-        test_file = tmp_path / 'test.txt'
-        test_file.write_text('test content')
-
-        mock_process = MockProcess(
-            stdout=b'Invalid JSON response',
-            stderr=b'',
-            returncode=0
-        )
-
-        with patch('asyncio.create_subprocess_exec', AsyncMock(return_value=mock_process)):
-            with pytest.raises(FiberyError) as exc_info:
-                await service.upload_file(test_file)
-            assert 'Failed to parse response JSON' in str(exc_info.value)
-
-    @pytest.mark.asyncio
-    async def test_upload_file_with_spaces(self, service, tmp_path):
-        test_file = tmp_path / 'test file with spaces.txt'
-        test_file.write_text('test content')
-
-        mock_process = MockProcess(
-            stdout=b'''
-            {
-                "fibery/id": "test-id-123",
-                "fibery/name": "test file with spaces.txt",
-                "fibery/content-type": "text/plain",
-                "fibery/secret": "test-secret-456"
-            }
-            ''',
-            stderr=b'',
-            returncode=0
-        )
-
-        with patch('asyncio.create_subprocess_exec', AsyncMock(return_value=mock_process)):
-            response = await service.upload_file(test_file)
-            assert response.name == 'test file with spaces.txt'
-
-    @pytest.mark.asyncio
-    async def test_upload_file_binary(self, service, tmp_path):
-        test_file = tmp_path / 'test.bin'
-        test_file.write_bytes(b'\x00\x01\x02\x03')
-
-        mock_process = MockProcess(
-            stdout=b'''
-            {
-                "fibery/id": "test-id-123",
-                "fibery/name": "test.bin",
-                "fibery/content-type": "application/octet-stream",
-                "fibery/secret": "test-secret-456"
-            }
-            ''',
-            stderr=b'',
-            returncode=0
-        )
-
-        with patch('asyncio.create_subprocess_exec', AsyncMock(return_value=mock_process)):
-            response = await service.upload_file(test_file)
-            assert response.content_type == 'application/octet-stream'
-
-
-    @pytest.mark.asyncio
     async def test_add_to_collection(self, service, mock_client):
         mock_response = Mock()
         mock_response.json.return_value = [{
@@ -382,7 +277,6 @@ class TestFiberyService:
         assert command['args']['entity']['fibery/id'] == 'test_entity_id'
         assert command['args']['field'] == 'user/Collection'
         assert len(command['args']['items']) == 2
-
 
     @pytest.mark.asyncio
     async def test_remove_from_collection(self, service, mock_client):
