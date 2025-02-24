@@ -1,9 +1,8 @@
 import asyncio
-import json
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, BinaryIO, cast
+from typing import Any, cast
 
 import httpx
 
@@ -372,70 +371,38 @@ class FiberyService:
             operation=CollectionOperation.REMOVE,
         )
 
-    # https://the.fibery.io/@public/User_Guide/Guide/File-API-265/anchor=Upload-File--604ca3b5-6011-4700-8c35-8ae750a7b468
     async def upload_file(
             self,
-            file: str | Path | BinaryIO,
-            filename: str | None = None
+            file_path: str | Path,
     ) -> FileUploadResponse:
-        """
-            Upload a file to Fibery using curl subprocess as a workaround for multipart/form-data issues.
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FiberyError(f'File not found: {file_path}')
 
-            This is a hacky solution that uses curl instead of the standard httpx client due to
-            difficulties with proper multipart/form-data formatting in the Python HTTP clients.
-            While not elegant, this approach works because:
-            1. It exactly matches the working curl command from Fibery documentation
-            2. Bypasses issues with Python's multipart encoding that Fibery's server rejects
-            3. Maintains async compatibility using asyncio subprocesses
-
-            Warning:
-                - Relies on curl being installed on the system
-                - May break if Fibery changes their API
-                - Limited error handling for curl process issues
-                - Not ideal for production systems but works as a temporary solution
-        """
         try:
-            if isinstance(file, (str, Path)):  # noqa UPO38
-                file_path = Path(file)
-            else:
-                if not filename:
-                    raise ValueError('filename is required when uploading from file object')
-                raise ValueError('File object not supported yet, please provide a file path')
+            with file_path.open('rb') as f:
+                files = {'file': (file_path.name, f)}
+                headers = {
+                    **self.client.headers,
+                    'X-Client': 'Unofficial JS',
+                    # https://gitlab.com/fibery-community/unofficial-js-client/-/blob/master/source/file.js?ref_type=heads#L21
+                }
+                response = await self.client.post(
+                    '/api/files',
+                    headers=headers,
+                    files=files
+                )
+                logger.info(response.text)
 
-            command = [
-                'curl',
-                '-X', 'POST',
-                f'{self.config.base_url}/api/files',
-                '-H', f'Authorization: Token {self.config.token}',
-                '-H', 'content-type: multipart/form-data',
-                '-F', f'file=@{file_path!s}'
-            ]
+                result = response.json()
+                return FileUploadResponse.model_validate(result)
 
-            logger.info(f"Executing command: {' '.join(command)}")
-
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
-
-            logger.debug(f"CURL stdout: {stdout.decode()}")
-            if stderr:
-                logger.debug(f"CURL stderr: {stderr.decode()}")
-
-            if process.returncode != 0:
-                raise FiberyError(f'Upload failed with curl error: {stderr.decode()}')
-
-            try:
-                response_data = json.loads(stdout.decode())
-                return FileUploadResponse.model_validate(response_data)
-            except json.JSONDecodeError as e:
-                raise FiberyError(f'Failed to parse response JSON: {e}') from e
+        except httpx.HTTPError as error:
+            logger.error(f'HTTP error during upload: {error}')
+            raise FiberyError(f'Failed to upload file: {error}') from error
 
         except Exception as error:
-            logger.error(f'Failed to upload file: {error}')
+            logger.error(f'Unexpected error during upload: {error}')
             raise FiberyError(f'Failed to upload file: {error}') from error
 
     async def upload_from_url(
@@ -467,7 +434,6 @@ class FiberyService:
             logger.error(f'Failed to upload file from URL: {error}')
             raise FiberyError(f'Failed to upload file from URL: {error}') from error
 
-
     async def download_file(
             self,
             secret: str,
@@ -492,7 +458,6 @@ class FiberyService:
         except Exception as error:
             logger.error(f'Failed to download file: {error}')
             raise FiberyError(f'Failed to download file: {error}') from error
-
 
     async def attach_files(
             self,
