@@ -1,10 +1,11 @@
 from typing import ClassVar
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
+from src import FiberyService
 from src.fibery.entity_model import FiberyBaseModel
-from src.fibery.fibery_formats import DocumentFormat
+from src.fibery.utils import DocumentFormat
 
 
 class FiberyModel(FiberyBaseModel):
@@ -19,6 +20,19 @@ class FiberyModel(FiberyBaseModel):
     RICH_TEXT_FIELDS: ClassVar[dict[str, str]] = {
         'description': 'TestType/description',
     }
+
+
+class AsyncMock(Mock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
+@pytest.fixture
+def service(self, mock_client):
+    service = FiberyService(token='test_token', account='test_account')
+    service.client = mock_client
+    return service
+
 
 @pytest.fixture
 def mock_client():

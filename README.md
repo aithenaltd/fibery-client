@@ -1,6 +1,6 @@
 # Fibery Client
 
-An async Python client for the Fibery API with support for entity management, document handling, and complex queries.
+An async Python client for the Fibery API with support for entity management, document handling and complex queries.
 
 ## Features
 
@@ -24,32 +24,34 @@ pip install git+ssh://git@github.com/aithenaltd/fibery-client.git
 from fibery import FiberyService
 from typing import ClassVar
 from fibery.entity_model import FiberyBaseModel
-from fibery.fibery_formats import DocumentFormat
+from fibery.utils import DocumentFormat
+
 
 # Define your entity model
 class EntityData(FiberyBaseModel):
     # Basic fields
     name: str
     url: str
-    
+
     # Optional fields
     optional_description: str | None
-    
+
     # Rich text fields (if needed)
     long_text: str
     long_text_format: DocumentFormat = DocumentFormat.MARKDOWN
-    
+
     # Fibery mapping
     FIBERY_FIELD_MAP: ClassVar[dict[str, str]] = {
         'name': 'YOUR_SPACE/Name',
         'url': 'YOUR_SPACE/URL',
         'optional_description': 'YOUR_SPACE/Description',
     }
-    
+
     # Rich text mapping
     RICH_TEXT_FIELDS: ClassVar[dict[str, str]] = {
         'long_text': 'YOUR_SPACE/Text',
     }
+
 
 # Initialize the service
 async with FiberyService(token='your_token', account='your_account') as service:
@@ -60,7 +62,7 @@ async with FiberyService(token='your_token', account='your_account') as service:
         optional_description='Optional description',
         long_text='Detailed content here...'
     )
-    
+
     # Upload the entity
     entity_id = await service.upload_entity(
         model=entity,
@@ -91,7 +93,27 @@ async with FiberyService(token='your_token') as service:
         model_class=EntityData,
         field_name='YOUR_SPACE/Name',
         operator='q/contains',
-        value='test'
+        value='test',
+    )
+
+    # Update entity
+    await service.update_entity(
+        type_name='YOUR_SPACE/Type',
+        entity_id="39d2b777-0edf-4391-a0dd-ae11f82b85a0",
+        updates={
+            'YOUR_SPACE/Name': 'New name',
+        },
+    )
+    
+    # Find and update entity
+    await service.find_and_update_entity(
+        type_name='YOUR_SPACE/Type',
+        model_class=EntityData,
+        search_field='YOUR_SPACE/Name',
+        search_value='Old name',
+        updates={
+            'YOUR_SPACE/Name': 'New name',
+        },
     )
 ```
 
@@ -120,6 +142,53 @@ await service.upload_sequential(
     data_list=entities,
     type_name='YOUR_SPACE/Type',
     delay=0.5  # 500ms delay between uploads
+)
+```
+
+### Collection operations
+
+```python
+# Add items to a collection
+await service.add_to_collection(
+    type_name='YOUR_SPACE/Type',
+    entity_id='216c2a00-9752-11e9-81b9-4363f716f666',
+    field='YOUR_SPACE/Name',
+    item_ids=['0a3ae1c0-97fa-11e9-81b9-4363f716f666'],
+)
+
+# Or use the update_collection method directly
+await service.update_collection(
+    type_name='YOUR_SPACE/Type',
+    entity_id='216c2a00-9752-11e9-81b9-4363f716f666',
+    field='YOUR_SPACE/Name',
+    item_ids=['0a3ae1c0-97fa-11e9-81b9-4363f716f666'],
+    operation=CollectionOperation.ADD,
+)
+```
+
+### Files operations
+
+```python
+# Upload a local file
+await service.upload_file('path/to/file.jpg')
+
+# Upload from URL
+await service.upload_from_url(
+    url='https://example.com/file.pdf',
+    name='name.pdf',
+)
+
+# Download a file
+await service.download_file(
+    secret='c5815fb0-997e-11e9-bcec-8fb5f642f8a5',
+    destination='downloaded_file.jpg',
+)
+
+# Attach files to an entity
+await service.attach_files(
+    type_name='YOUR_SPACE/Type',
+    entity_id='20f9b920-9752-11e9-81b9-4363f716f666',
+    file_ids=['c5bc1ec0-997e-11e9-bcec-8fb5f642f8a5'],
 )
 ```
 
@@ -165,6 +234,12 @@ poetry install
 ```bash
 poetry run pytest
 ```
+
+## todo
+
+- Add logger level setting
+- Split FiberyService to smaller pieces
+- Split test class to smaller pieces
 
 ## License
 

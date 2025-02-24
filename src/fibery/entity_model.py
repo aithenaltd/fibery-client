@@ -2,7 +2,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from .fibery_formats import DocumentFormat
+from .utils import DocumentFormat
 
 
 class RichTextField(BaseModel):
@@ -11,8 +11,17 @@ class RichTextField(BaseModel):
 
 
 class FiberyBaseModel(BaseModel):
+    fibery_id: str | None = None
+
     FIBERY_FIELD_MAP: ClassVar[dict[str, str]] = {}
     RICH_TEXT_FIELDS: ClassVar[dict[str, str]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.FIBERY_FIELD_MAP = {
+            'fibery_id': 'fibery/id',
+            **cls.FIBERY_FIELD_MAP
+        }
 
     def to_fibery_fields(self) -> dict[str, Any]:
         return {
