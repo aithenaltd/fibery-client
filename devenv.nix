@@ -8,25 +8,16 @@
   packages = [ pkgs.git ];
 
   # https://devenv.sh/languages/
-  # languages.python = {
-  #   enable = true;
-  #   package = pkgs.python311;
-
-  #   poetry = {
-  #     enable = true;
-  #   };
-  # };
   languages.python = {
     enable = true;
-    package = pkgs.python312;
-    poetry = {
+    package = pkgs.python311;
+    uv = {
       enable = true;
-      activate.enable = true;
-      install.enable = true;
+      sync.enable = true;
+      sync.extras = [ "dev" ];
+      package = pkgs.uv;
     };
   };
-
-
 
   # https://devenv.sh/processes/
   # processes.cargo-watch.exec = "cargo-watch";
@@ -40,8 +31,7 @@
   '';
 
   enterShell = ''
-    hello
-    git --version
+    uv venv
   '';
 
   # https://devenv.sh/tasks/
@@ -53,7 +43,7 @@
   # https://devenv.sh/tests/
   enterTest = ''
     echo "Running tests"
-    git --version | grep --color=auto "${pkgs.git.version}"
+    uv run --extra dev pytest
   '';
 
   # https://devenv.sh/git-hooks/
