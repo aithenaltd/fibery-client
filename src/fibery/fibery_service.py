@@ -32,7 +32,8 @@ logger.setLevel(logging.INFO)
 
 
 class FiberyService:
-    def __init__(self, token: str | None = None, account: str | None = None):
+    def __init__(self, token: str | None = None, account: str | None = None, delay: float = 0.32):
+        self.delay = delay
         self.config = FiberyConfig(token=token, account=account)
         self.client = httpx.AsyncClient(
             base_url=self.config.base_url,
@@ -119,6 +120,7 @@ class FiberyService:
                         content=rich_text.content,
                         document_format=rich_text.format
                     )
+                    await asyncio.sleep(self.delay)
             except Exception as error:
                 logger.error(f'Error updating field {field_name}: {error}')
 
@@ -147,7 +149,6 @@ class FiberyService:
             self,
             data_list: list[FiberyBaseModel],
             type_name: str,
-            delay: float = 0.5
     ) -> None:
         for model in data_list:
             try:
@@ -160,7 +161,7 @@ class FiberyService:
                 logger.error(error)
                 raise FiberyUploadError(f'Failed to upload entity {model}: {error}') from error
 
-            await asyncio.sleep(delay)
+            await asyncio.sleep(self.delay)
 
     async def query_entities(
             self,

@@ -54,7 +54,7 @@ class EntityData(FiberyBaseModel):
 
 
 # Initialize the service
-async with FiberyService(token='your_token', account='your_account') as service:
+async with FiberyService(token='your_token', account='your_account', delay=0.5) as service:
     # Create a new entity
     entity = EntityData(
         name='Test Entity',
@@ -85,7 +85,7 @@ async with FiberyService(token='your_token') as service:
         model_class=EntityData,
         limit=100
     )
-    
+
     # Filter entities
     filtered = await service.get_filtered_entities(
         type_name='YOUR_SPACE/Type',
@@ -104,7 +104,7 @@ async with FiberyService(token='your_token') as service:
             'YOUR_SPACE/Name': 'New name',
         },
     )
-    
+
     # Find and update entity
     await service.find_and_update_entity(
         type_name='YOUR_SPACE/Type',
@@ -138,10 +138,11 @@ entities = [
     EntityData(name='Entity 2', url='https://example2.com', long_text='Content 2')
 ]
 
+service.delay = 0.5
+
 await service.upload_sequential(
     data_list=entities,
     type_name='YOUR_SPACE/Type',
-    delay=0.5  # 500ms delay between uploads
 )
 ```
 
@@ -189,6 +190,20 @@ await service.attach_files(
     type_name='YOUR_SPACE/Type',
     entity_id='20f9b920-9752-11e9-81b9-4363f716f666',
     file_ids=['c5bc1ec0-997e-11e9-bcec-8fb5f642f8a5'],
+)
+```
+
+## Rate Limits
+
+Rate-limited requests will return a "Too Many Requests" error (HTTP response
+status 429). The rate limit for incoming requests is [3 requests per
+second](https://github.com/aithenaltd/fibery-client/pulls) per token.
+
+```python
+service = FiberyService(
+    token='your_token',
+    account='your_account'
+    delay=0.5 # Use delay to limit number of requests per second
 )
 ```
 
