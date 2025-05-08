@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, cast
 
 import httpx
@@ -8,17 +9,26 @@ import httpx
 from .builders import EntityBuilder, QueryBuilder
 from .config import FiberyConfig
 from .entity_model import FiberyBaseModel, RichTextField
-from .fibery_formats import DocumentFormat
 from .fibery_models import (
     DocumentResponse,
     FiberyError,
     FiberyResponse,
     FiberyUploadError,
+    FileUploadResponse,
+    HttpMethod,
     QueryResponse,
     T,
+    UrlUploadRequest,
+)
+from .utils import CollectionOperation, DocumentFormat
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class FiberyService:
@@ -44,9 +54,11 @@ class FiberyService:
         try:
             query = QueryBuilder.build_document_query(type_name, entity_id, field_name)
             response = await self.client.post('/api/commands', json=[query])
+            logger.info(response.text)
             result = response.json()
             return DocumentResponse.from_raw_response(result[0], field_name)
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to get document secret: {error}') from error
 
     async def update_document(
@@ -61,9 +73,11 @@ class FiberyService:
                 params={'format': str(document_format)},
                 json={'content': content}
             )
+            logger.info(response.text)
             result = response.json()
             return isinstance(result, dict) and 'success' in result
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to update document: {error}') from error
 
     async def create_entity(
@@ -74,6 +88,7 @@ class FiberyService:
         try:
             entity_id, command = EntityBuilder.prepare_command(type_name, item)
             response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
             result = response.json()
             result_list = cast(list, result)
 
@@ -82,6 +97,7 @@ class FiberyService:
                 result=result_list[0],
             )
         except httpx.HTTPError as error:
+            logger.error(error)
             raise FiberyError(f'Failed to create entity: {error}') from error
 
     async def _update_rich_text_fields(
@@ -103,8 +119,8 @@ class FiberyService:
                         content=rich_text.content,
                         document_format=rich_text.format
                     )
-            except Exception as e:
-                logger.error(f'Error updating field {field_name}: {e}')
+            except Exception as error:
+                logger.error(f'Error updating field {field_name}: {error}')
 
     async def upload_entity(
             self,
@@ -124,6 +140,7 @@ class FiberyService:
             return entity_id
 
         except Exception as error:
+            logger.error(error)
             raise FiberyUploadError(f'Failed to upload documents for {model}: {error}') from error
 
     async def upload_sequential(
@@ -138,7 +155,9 @@ class FiberyService:
                     model=model,
                     type_name=type_name,
                 )
+                logger.info(f'Successfully uploaded {model}')
             except Exception as error:
+                logger.error(error)
                 raise FiberyUploadError(f'Failed to upload entity {model}: {error}') from error
 
             await asyncio.sleep(delay)
@@ -164,9 +183,8 @@ class FiberyService:
             params=params
         )
         response = await self.client.post('/api/commands', json=[query])
-        print(response)
+        logger.info(response.text)
         result = response.json()
-        print(result)
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
@@ -203,9 +221,8 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
-        print(response)
+        logger.info(response.text)
         result = response.json()
-        print(result)
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
@@ -228,6 +245,229 @@ class FiberyService:
             limit=limit
         )
         response = await self.client.post('/api/commands', json=[query])
+        logger.info(response.text)
         result = response.json()
         result_list = cast(list, result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
+
+    async def update_entity(
+            self,
+            type_name: str,
+            entity_id: str,
+            updates: dict[str, Any]
+    ) -> FiberyResponse:
+        try:
+            command = EntityBuilder.prepare_update_command(type_name, entity_id, updates)
+            response = await self.client.post('/api/commands', json=[command.model_dump()])
+            logger.info(response.text)
+            result = response.json()
+            result_list = cast(list, result)
+
+            logger.info(f'Updating entity {entity_id}')
+            return FiberyResponse(
+                success=result_list[0].get('success'),
+                result=result_list[0].get('result')
+            )
+        except httpx.HTTPError as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to update entity: {error}') from error
+
+    async def find_and_update_entity(
+            self,
+            type_name: str,
+            model_class: type[T],
+            search_field: str,
+            search_value: Any,
+            updates: dict[str, Any]
+    ) -> FiberyResponse:
+        try:
+            response = await self.get_filtered_entities(
+                type_name=type_name,
+                fields=['fibery/id'],
+                model_class=model_class,
+                field_name=search_field,
+                operator='=',
+                value=search_value,
+                limit=1
+            )
+
+            logger.info('Successfully found entity')
+            if not response.items:
+                raise FiberyError(f'Entity not found with {search_field}={search_value}')
+
+            entity_id = response.items[0].fibery_id
+            if not entity_id:
+                raise FiberyError('Retrieved entity missing fibery/id')
+
+            return await self.update_entity(
+                type_name=type_name,
+                entity_id=entity_id,
+                updates=updates
+            )
+        except Exception as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to find and update entity: {error}') from error
+
+    async def update_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str],
+            operation: CollectionOperation
+    ) -> FiberyResponse:
+        try:
+            command = EntityBuilder.prepare_collection_command(
+                type_name=type_name,
+                entity_id=entity_id,
+                field=field,
+                item_ids=item_ids,
+                operation=operation
+            )
+
+            response = await self.client.post(
+                '/api/commands',
+                json=[command.model_dump()]
+            )
+            logger.info(response.text)
+            result = response.json()
+            result_list = cast(list, result)
+
+            return FiberyResponse(
+                success=result_list[0].get('success'),
+                result=result_list[0]
+            )
+        except httpx.HTTPError as error:
+            logger.error(error)
+            raise FiberyError(f'Failed to {operation} items to collection: {error}') from error
+
+    async def add_to_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.update_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field=field,
+            item_ids=item_ids,
+            operation=CollectionOperation.ADD
+        )
+
+    async def remove_from_collection(
+            self,
+            type_name: str,
+            entity_id: str,
+            field: str,
+            item_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.update_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field=field,
+            item_ids=item_ids,
+            operation=CollectionOperation.REMOVE,
+        )
+
+    async def upload_file(
+            self,
+            file_path: str | Path,
+    ) -> FileUploadResponse:
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FiberyError(f'File not found: {file_path}')
+
+        try:
+            with file_path.open('rb') as f:
+                files = {'file': (file_path.name, f)}
+                headers = {
+                    **self.client.headers,
+                    'X-Client': 'Unofficial JS',
+                    # https://gitlab.com/fibery-community/unofficial-js-client/-/blob/master/source/file.js?ref_type=heads#L21
+                }
+                response = await self.client.post(
+                    '/api/files',
+                    headers=headers,
+                    files=files
+                )
+                logger.info(response.text)
+
+                result = response.json()
+                return FileUploadResponse.model_validate(result)
+
+        except httpx.HTTPError as error:
+            logger.error(f'HTTP error during upload: {error}')
+            raise FiberyError(f'Failed to upload file: {error}') from error
+
+        except Exception as error:
+            logger.error(f'Unexpected error during upload: {error}')
+            raise FiberyError(f'Failed to upload file: {error}') from error
+
+    async def upload_from_url(
+            self,
+            url: str,
+            name: str | None = None,
+            method: HttpMethod = HttpMethod.GET,
+    ) -> FileUploadResponse:
+        try:
+            request = UrlUploadRequest(
+                url=url,
+                name=name,
+                method=method,
+                headers=self.config.headers,
+            )
+
+            response = await self.client.post(
+                '/api/files/from-url',
+                json=request.model_dump(exclude_none=True)
+            )
+            logger.info(response.text)
+
+            if response.status_code != 200:
+                raise FiberyError(f'Upload failed with status {response.status_code}: {response.text}')
+
+            return FileUploadResponse.model_validate(response.json())
+
+        except Exception as error:
+            logger.error(f'Failed to upload file from URL: {error}')
+            raise FiberyError(f'Failed to upload file from URL: {error}') from error
+
+    async def download_file(
+            self,
+            secret: str,
+            destination: str | Path | None = None
+    ) -> bytes:
+        try:
+            response = await self.client.get(f'/api/files/{secret}')
+            logger.info(f'Downloaded file with secret {secret}')
+
+            if response.status_code != 200:
+                raise FiberyError(f'Download failed with status {response.status_code}: {response.text}')
+
+            content = response.content
+
+            if destination:
+                path = Path(destination)
+                path.write_bytes(content)
+                logger.info(f'Saved file to {path}')
+
+            return content
+
+        except Exception as error:
+            logger.error(f'Failed to download file: {error}')
+            raise FiberyError(f'Failed to download file: {error}') from error
+
+    async def attach_files(
+            self,
+            type_name: str,
+            entity_id: str,
+            file_ids: list[str]
+    ) -> FiberyResponse:
+        return await self.add_to_collection(
+            type_name=type_name,
+            entity_id=entity_id,
+            field='Files/Files',
+            item_ids=file_ids
+        )
