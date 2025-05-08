@@ -119,6 +119,11 @@ class FiberyService:
                         content=rich_text.content,
                         document_format=rich_text.format
                     )
+                    # https://the.fibery.io/@public/User_Guide/Guide/REST-API-Authentication-260
+                    # Rate-limited requests will return a "Too Many Requests"
+                    # error (HTTP response status 429). The rate limit for
+                    # incoming requests is 3 requests per second per token.
+                    asyncio.sleep(0.33)
             except Exception as error:
                 logger.error(f'Error updating field {field_name}: {error}')
 
