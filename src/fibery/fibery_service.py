@@ -120,7 +120,7 @@ class FiberyService:
                         content=rich_text.content,
                         document_format=rich_text.format
                     )
-                    asyncio.sleep(self.delay)
+                    await asyncio.sleep(self.delay)
             except Exception as error:
                 logger.error(f'Error updating field {field_name}: {error}')
 
