@@ -99,7 +99,7 @@ class FiberyService:
             response = await self.client.post('/api/commands', json=[command.model_dump()])
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             return entity_id, FiberyResponse(
                 success=result_list[0].get('success'),
@@ -194,7 +194,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def get_entities(
@@ -232,7 +232,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def get_entities_by_date_range(
@@ -256,7 +256,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def update_entity(
@@ -270,7 +270,7 @@ class FiberyService:
             response = await self.client.post('/api/commands', json=[command.model_dump()])
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             logger.info(f'Updating entity {entity_id}')
             return FiberyResponse(
@@ -340,7 +340,7 @@ class FiberyService:
             )
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             return FiberyResponse(
                 success=result_list[0].get('success'),
