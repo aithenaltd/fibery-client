@@ -46,6 +46,14 @@ class FiberyService:
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.client.aclose()
 
+    def get_headers(self) -> dict[str, str]:
+        headers = {
+            'Authorization': self.client.headers.get('authorization'),
+            'X-Client': 'Unofficial JS',
+            # https://gitlab.com/fibery-community/unofficial-js-client/-/blob/master/source/file.js?ref_type=heads#L21
+        }
+        return {k: v for k, v in headers.items() if v is not None}
+
     async def get_document_secret(
             self,
             type_name: str,
@@ -91,7 +99,7 @@ class FiberyService:
             response = await self.client.post('/api/commands', json=[command.model_dump()])
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             return entity_id, FiberyResponse(
                 success=result_list[0].get('success'),
@@ -186,7 +194,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def get_entities(
@@ -224,7 +232,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def get_entities_by_date_range(
@@ -248,7 +256,7 @@ class FiberyService:
         response = await self.client.post('/api/commands', json=[query])
         logger.info(response.text)
         result = response.json()
-        result_list = cast(list, result)
+        result_list = cast('list', result)
         return QueryResponse.from_raw_response(result_list[0], model_class)
 
     async def update_entity(
@@ -262,7 +270,7 @@ class FiberyService:
             response = await self.client.post('/api/commands', json=[command.model_dump()])
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             logger.info(f'Updating entity {entity_id}')
             return FiberyResponse(
@@ -332,7 +340,7 @@ class FiberyService:
             )
             logger.info(response.text)
             result = response.json()
-            result_list = cast(list, result)
+            result_list = cast('list', result)
 
             return FiberyResponse(
                 success=result_list[0].get('success'),
@@ -383,18 +391,16 @@ class FiberyService:
         try:
             with file_path.open('rb') as f:
                 files = {'file': (file_path.name, f)}
-                headers = {
-                    **self.client.headers,
-                    'X-Client': 'Unofficial JS',
-                    # https://gitlab.com/fibery-community/unofficial-js-client/-/blob/master/source/file.js?ref_type=heads#L21
-                }
-                response = await self.client.post(
-                    '/api/files',
-                    headers=headers,
-                    files=files
-                )
-                logger.info(response.text)
 
+                headers = self.get_headers()
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f'{self.client.base_url}/api/files',
+                        headers=headers,
+                        files=files
+                    )
+
+                logger.info(response.text)
                 result = response.json()
                 return FileUploadResponse.model_validate(result)
 
@@ -413,17 +419,19 @@ class FiberyService:
             method: HttpMethod = HttpMethod.GET,
     ) -> FileUploadResponse:
         try:
+            headers = self.get_headers()
             request = UrlUploadRequest(
                 url=url,
                 name=name,
                 method=method,
-                headers=self.config.headers,
+                headers=headers,
             )
 
-            response = await self.client.post(
-                '/api/files/from-url',
-                json=request.model_dump(exclude_none=True)
-            )
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    '/api/files/from-url',
+                    json=request.model_dump(exclude_none=True)
+                )
             logger.info(response.text)
 
             if response.status_code != 200:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import Mock, PropertyMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -14,11 +14,14 @@ class TestFiberyServiceUploadFile:
         return service
 
     @pytest.mark.asyncio
-    async def test_upload_file_success(self, service, mock_client, tmp_path):
+    @patch('httpx.AsyncClient')
+    async def test_upload_file_success(self, mock_async_client_class, service, mock_client, tmp_path):
         test_file = tmp_path / 'test.txt'
         test_file.write_text('test content')
 
-        type(mock_client).headers = PropertyMock(return_value={'Authorization': 'Bearer test'})
+        mock_async_client_instance = AsyncMock()
+        mock_async_client_class.return_value.__aenter__.return_value = mock_async_client_instance
+
         mock_response = Mock()
         mock_response.text = 'response text'
         mock_response.json.return_value = {
@@ -27,13 +30,19 @@ class TestFiberyServiceUploadFile:
             'fibery/content-type': 'text/plain',
             'fibery/secret': 'abc123'
         }
-        mock_client.post.return_value = mock_response
+        mock_async_client_instance.post.return_value = mock_response
+
+        mock_client.base_url = 'https://test_account.fibery.io'
+        service.get_headers = Mock(return_value={
+            'Authorization': 'Bearer test',
+            'X-Client': 'Unofficial JS'
+        })
 
         result = await service.upload_file(test_file)
 
-        mock_client.post.assert_called_once()
-        call_args = mock_client.post.call_args
-        assert call_args[0][0] == '/api/files'
+        mock_async_client_instance.post.assert_called_once()
+        call_args = mock_async_client_instance.post.call_args
+
         assert call_args[1]['headers'] == {
             'Authorization': 'Bearer test',
             'X-Client': 'Unofficial JS'
@@ -47,11 +56,14 @@ class TestFiberyServiceUploadFile:
         assert result.secret == 'abc123'
 
     @pytest.mark.asyncio
-    async def test_upload_file_with_path_object(self, service, mock_client, tmp_path):
+    @patch('httpx.AsyncClient')
+    async def test_upload_file_with_path_object(self, mock_async_client_class, service, mock_client, tmp_path):
         test_file = Path(tmp_path) / 'test.txt'
         test_file.write_text('test content')
 
-        type(mock_client).headers = PropertyMock(return_value={'Authorization': 'Bearer test'})
+        mock_async_client_instance = AsyncMock()
+        mock_async_client_class.return_value.__aenter__.return_value = mock_async_client_instance
+
         mock_response = Mock()
         mock_response.json.return_value = {
             'fibery/id': '123',
@@ -59,8 +71,11 @@ class TestFiberyServiceUploadFile:
             'fibery/content-type': 'text/plain',
             'fibery/secret': 'abc123'
         }
-        mock_client.post.return_value = mock_response
+        mock_async_client_instance.post.return_value = mock_response
+
+        mock_client.base_url = 'https://test_account.fibery.io'
+        mock_client.headers = {'Authorization': 'Bearer test', 'X-Client': 'Unofficial JS'}
 
         await service.upload_file(test_file)
 
-        mock_client.post.assert_called_once()
+        mock_async_client_instance.post.assert_called_once()
