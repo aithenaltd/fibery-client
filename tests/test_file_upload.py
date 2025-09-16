@@ -1,10 +1,9 @@
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from src import FiberyService
-from tests.conftest import AsyncMock
 
 
 class TestFiberyServiceUploadFile:
@@ -22,7 +21,7 @@ class TestFiberyServiceUploadFile:
 
         mock_async_client_instance = AsyncMock()
         mock_async_client_class.return_value.__aenter__.return_value = mock_async_client_instance
-        
+
         mock_response = Mock()
         mock_response.text = 'response text'
         mock_response.json.return_value = {
@@ -32,7 +31,7 @@ class TestFiberyServiceUploadFile:
             'fibery/secret': 'abc123'
         }
         mock_async_client_instance.post.return_value = mock_response
-        
+
         mock_client.base_url = 'https://test_account.fibery.io'
         service.get_headers = Mock(return_value={
             'Authorization': 'Bearer test',
@@ -43,7 +42,7 @@ class TestFiberyServiceUploadFile:
 
         mock_async_client_instance.post.assert_called_once()
         call_args = mock_async_client_instance.post.call_args
-        
+
         assert call_args[1]['headers'] == {
             'Authorization': 'Bearer test',
             'X-Client': 'Unofficial JS'
@@ -57,14 +56,14 @@ class TestFiberyServiceUploadFile:
         assert result.secret == 'abc123'
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient') 
+    @patch('httpx.AsyncClient')
     async def test_upload_file_with_path_object(self, mock_async_client_class, service, mock_client, tmp_path):
         test_file = Path(tmp_path) / 'test.txt'
         test_file.write_text('test content')
 
         mock_async_client_instance = AsyncMock()
         mock_async_client_class.return_value.__aenter__.return_value = mock_async_client_instance
-        
+
         mock_response = Mock()
         mock_response.json.return_value = {
             'fibery/id': '123',
@@ -73,7 +72,7 @@ class TestFiberyServiceUploadFile:
             'fibery/secret': 'abc123'
         }
         mock_async_client_instance.post.return_value = mock_response
-    
+
         mock_client.base_url = 'https://test_account.fibery.io'
         mock_client.headers = {'Authorization': 'Bearer test', 'X-Client': 'Unofficial JS'}
 
